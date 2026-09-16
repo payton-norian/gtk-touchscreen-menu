@@ -63,6 +63,9 @@ class MainMenu(Gtk.Window):
 
         # Прокрутка (делаем прозрачной, чтобы не перекрывала фон окна)
         scrolled = Gtk.ScrolledWindow()
+        # Отключаем горизонтальный и вертикальный скроллбары
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.NEVER)
+
         scrolled.set_size_request(1400, 820)
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         outer.pack_start(scrolled, True, True, 0)
