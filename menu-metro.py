@@ -5,6 +5,14 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gio, GLib, Gdk
 
+gi.require_version('Gtk', '3.0') # или '4.0'
+from gi.repository import Gtk
+
+# Получаем настройки по умолчанию для приложения
+settings = Gtk.Settings.get_default()
+# Говорим, что предпочитаем темную тему
+settings.set_property("gtk-application-prefer-dark-theme", True)
+
 
 class MainMenu(Gtk.Window):
     def __init__(self):
@@ -35,11 +43,11 @@ class MainMenu(Gtk.Window):
         # 2. Стилизация фона через CSS
         provider = Gtk.CssProvider()
         # background-color: rgba(0, 0, 0, 0.0) -> Полностью прозрачный фон
-        # background-color: rgba(0, 0, 0, 0.15) -> Едва заметная темная тонировка (15%)
-        # background-color: rgba(255, 255, 255, 0.1) -> Едва заметная светлая тонировка (10%)
+        # background-color: rgba(0, 0, 0, 0.5) -> Едва заметная темная тонировка (15%)
+        # background-color: rgba(255, 255, 255, 0.5) -> Едва заметная светлая тонировка (10%)
         provider.load_from_data(b"""
             window {
-                background-color: rgba(0, 0, 0, 0.15);
+                background-color: rgba(0, 0, 0, 0.5);
             }
             scrolledwindow, viewport {
                 background-color: transparent;
