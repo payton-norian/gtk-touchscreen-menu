@@ -40,7 +40,6 @@ class MainMenu(Gtk.Window):
         outer.pack_start(workspace, True, True, 0)
 
         # --- ЛЕВАЯ ПАНЕЛЬ: Категории ---
-        # Оборачиваем в ScrolledWindow, чтобы на тачскрине можно было скроллить и категории
         category_scroll = Gtk.ScrolledWindow()
         category_scroll.set_size_request(180, 640)
         category_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -53,7 +52,7 @@ class MainMenu(Gtk.Window):
 
         # --- ПРАВАЯ ПАНЕЛЬ: Сетка приложений ---
         scrolled = Gtk.ScrolledWindow()
-        scrolled.set_size_request(800, 640) # Уменьшили ширину, освободив место под категории
+        scrolled.set_size_request(800, 640)
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         workspace.pack_start(scrolled, True, True, 0)
 
@@ -63,7 +62,7 @@ class MainMenu(Gtk.Window):
         self.flowbox.set_selection_mode(Gtk.SelectionMode.NONE)
         self.flowbox.set_column_spacing(8)
         self.flowbox.set_row_spacing(8)
-        self.flowbox.set_max_children_per_line(4) # Уменьшили до 4, так как ширина стала меньше
+        self.flowbox.set_max_children_per_line(4)
         self.flowbox.set_min_children_per_line(2)
         
         # Подключаем функцию фильтрации к FlowBox
@@ -81,31 +80,7 @@ class MainMenu(Gtk.Window):
 
     def load_applications_and_categories(self):
         """Загружает приложения и динамически формирует список доступных категорий."""
-        raw_applications = Gio.AppInfo.get_all()
-        applications = []
-        
-        for app in raw_applications:
-            # 1. Проверяем, должно ли приложение вообще отображаться
-            if not app.should_show():
-                continue
-                
-            # 2. Получаем категории приложения
-            app_categories = app.get_categories() or ""
-            cats = [c.strip() for c in app_categories.split(";") if c.strip()]
-            
-            # Фильтр скринсейверов: пропускаем, если это хранитель экрана
-            if "Screensaver" in cats or "X-GNOME-Screensaver" in cats:
-                continue
-
-            # Фильтр неустановленных приложений (на случай, если пакет app-install-data не удален)
-            if hasattr(app, "get_id") and app.get_id() and "app-install" in app.get_id():
-                continue
-            if hasattr(app, "get_filename") and app.get_filename() and "app-install" in app.get_filename():
-                continue
-
-            applications.append(app)
-
-        # Сортируем отфильтрованный список
+        applications = [app for app in Gio.AppInfo.get_all() if app.should_show()]
         applications.sort(key=lambda app: app.get_display_name().lower())
 
         # Множество для сбора всех уникальных категорий
@@ -115,6 +90,7 @@ class MainMenu(Gtk.Window):
             button = self.create_button(app)
             self.flowbox.add(button)
 
+            # Получаем категории приложения из desktop-файла
             app_categories = app.get_categories()
             if app_categories:
                 cats = [c.strip() for c in app_categories.split(";") if c.strip()]
@@ -123,7 +99,7 @@ class MainMenu(Gtk.Window):
         # Добавляем дефолтную строку "Все"
         self.add_category_row("Все", "All")
 
-        # Переводим системные категории на человеческий язык (основные)
+        # Переводим системные категории на человеческий язык
         category_mapping = {
             "AudioVideo": "Мультимедиа",
             "Development": "Разработка",
@@ -140,7 +116,6 @@ class MainMenu(Gtk.Window):
         # Сортируем категории и добавляем в боковую панель
         sorted_categories = sorted(list(unique_categories))
         for cat in sorted_categories:
-            # Показываем красивое имя, если оно есть в словаре, иначе — техническое
             display_name = category_mapping.get(cat, cat)
             self.add_category_row(display_name, cat)
 
@@ -152,7 +127,7 @@ class MainMenu(Gtk.Window):
     def add_category_row(self, display_name, internal_name):
         """Вспомогательный метод для создания строки в списке категорий."""
         row = Gtk.ListBoxRow()
-        row.internal_name = internal_name  # Сохраняем имя категории внутри объекта строки
+        row.internal_name = internal_name
         
         label = Gtk.Label(label=display_name)
         label.set_halign(Gtk.Align.START)
@@ -169,9 +144,7 @@ class MainMenu(Gtk.Window):
         if self.current_category == "All":
             return True
 
-        # Извлекаем кнопку и привязанное к ней приложение
         button = child.get_child()
-        # Извлекаем объект Gio.AppInfo, который мы привязали к кнопке в create_button
         app = button.app_info 
         
         app_categories = app.get_categories()
@@ -185,12 +158,11 @@ class MainMenu(Gtk.Window):
         """Вызывается при смене категории пользователем."""
         if row is not None:
             self.current_category = row.internal_name
-            # Заставляем FlowBox применить фильтр заново
             self.flowbox.invalidate_filter()
 
     def create_button(self, app):
         button = Gtk.Button()
-        button.app_info = app  # Сохраняем ссылку на app_info прямо в кнопке для фильтрации
+        button.app_info = app
         button.set_size_request(110, 90)
         button.set_tooltip_text(app.get_description() or "")
 
@@ -213,24 +185,20 @@ class MainMenu(Gtk.Window):
         return button
 
     def on_map(self, window):
+        """Современный захват клавиатуры и мыши через механизм Seat."""
         window_gdk = self.get_window()
-        device_manager = Gdk.Display.get_default().get_device_manager()
-        pointer = device_manager.get_client_pointer()
-        
-        Gdk.device_grab(
-            pointer, window_gdk, 
-            Gdk.GrabOwnership.APPLICATION, True, 
-            Gdk.EventMask.BUTTON_PRESS_MASK, None, 
-            Gdk.CURRENT_TIME
-        )
-        keyboard = pointer.get_associated_device()
-        if keyboard:
-            Gdk.device_grab(
-                keyboard, window_gdk, 
-                Gdk.GrabOwnership.APPLICATION, True, 
-                Gdk.EventMask.KEY_PRESS_MASK, None, 
-                Gdk.CURRENT_TIME
-            )
+        display = Gdk.Display.get_default()
+        if display:
+            seat = display.get_default_seat()
+            if seat:
+                seat.grab(
+                    window_gdk, 
+                    Gdk.SeatCapabilities.ALL, 
+                    True, 
+                    None, 
+                    None, 
+                    None
+                )
 
     def launch_application(self, button, app):
         try:
@@ -250,14 +218,9 @@ class MainMenu(Gtk.Window):
         return False
 
 
-
 if __name__ == "__main__":
-    # Принудительно включаем тёмную тему для всего приложения
     settings = Gtk.Settings.get_default()
     settings.set_property("gtk-application-prefer-dark-theme", True)
 
-    # Запускаем наше меню
     MainMenu()
     Gtk.main()
-
-
