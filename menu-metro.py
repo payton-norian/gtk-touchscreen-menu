@@ -5,9 +5,6 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gio, GLib, Gdk
 
-gi.require_version('Gtk', '3.0') # или '4.0'
-from gi.repository import Gtk
-
 # Получаем настройки по умолчанию для приложения
 settings = Gtk.Settings.get_default()
 # Говорим, что предпочитаем темную тему
@@ -42,9 +39,6 @@ class MainMenu(Gtk.Window):
 
         # 2. Стилизация фона через CSS
         provider = Gtk.CssProvider()
-        # background-color: rgba(0, 0, 0, 0.0) -> Полностью прозрачный фон
-        # background-color: rgba(0, 0, 0, 0.5) -> Едва заметная темная тонировка (15%)
-        # background-color: rgba(255, 255, 255, 0.5) -> Едва заметная светлая тонировка (10%)
         provider.load_from_data(b"""
             window {
                 background-color: rgba(0, 0, 0, 0.5);
@@ -64,17 +58,13 @@ class MainMenu(Gtk.Window):
         self.add(outer)
 
         title = Gtk.Label()
-        # Сделаем заголовок белым, чтобы он хорошо читался на любом прозрачном фоне
         title.set_markup("<span foreground='white'><b>Приложения</b></span>")
         title.set_halign(Gtk.Align.START)
         outer.pack_start(title, False, False, 0)
 
-        # Прокрутка (делаем прозрачной, чтобы не перекрывала фон окна)
+        # Прокрутка
         scrolled = Gtk.ScrolledWindow()
-        # Отключаем горизонтальный и вертикальный скроллбары
-        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.NEVER)
-
-        scrolled.set_size_request(1400, 820)
+        scrolled.set_size_request(1200, 680)
         scrolled.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         outer.pack_start(scrolled, True, True, 0)
 
@@ -87,7 +77,26 @@ class MainMenu(Gtk.Window):
         flowbox.set_min_children_per_line(3)
         scrolled.add(flowbox)
 
-        applications = [app for app in Gio.AppInfo.get_all() if app.should_show()]
+        raw_applications = Gio.AppInfo.get_all()
+        applications = []
+
+        for app in raw_applications:
+            if not app.should_show():
+                continue
+
+            app_categories = app.get_categories() or ""
+            cats = [c.strip() for c in app_categories.split(";") if c.strip()]
+
+            if "Screensaver" in cats or "X-GNOME-Screensaver" in cats:
+                continue
+
+            if hasattr(app, "get_id") and app.get_id() and "app-install" in app.get_id():
+                continue
+            if hasattr(app, "get_filename") and app.get_filename() and "app-install" in app.get_filename():
+                continue
+
+            applications.append(app)
+
         applications.sort(key=lambda app: app.get_display_name().lower())
 
         for app in applications:
@@ -99,23 +108,19 @@ class MainMenu(Gtk.Window):
 
     def on_map(self, window):
         window_gdk = self.get_window()
-        device_manager = Gdk.Display.get_default().get_device_manager()
-        pointer = device_manager.get_client_pointer()
-        
-        Gdk.device_grab(
-            pointer, window_gdk, 
-            Gdk.GrabOwnership.APPLICATION, True, 
-            Gdk.EventMask.BUTTON_PRESS_MASK, None, 
-            Gdk.CURRENT_TIME
-        )
-        keyboard = pointer.get_associated_device()
-        if keyboard:
-            Gdk.device_grab(
-                keyboard, window_gdk, 
-                Gdk.GrabOwnership.APPLICATION, True, 
-                Gdk.EventMask.KEY_PRESS_MASK, None, 
-                Gdk.CURRENT_TIME
-            )
+        display = Gdk.Display.get_default()
+        if display:
+            seat = display.get_default_seat()
+            if seat:
+                # Современный и безопасный захват клавиатуры и мыши
+                seat.grab(
+                    window_gdk, 
+                    Gdk.SeatCapabilities.ALL, 
+                    True, 
+                    None, 
+                    None, 
+                    None
+                )
 
     def create_button(self, app):
         button = Gtk.Button()
